@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+    <title>Nano Banana - AI 绘图创作工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* ==================== UI 美化核心 ==================== */
+        :root {
+            --bg-primary: #09090b;
+            --bg-secondary: rgba(24, 24, 27, 0.8);
+            --bg-tertiary: rgba(39, 39, 42, 0.6);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --accent-blue: #3b82f6;
+            --glass-blur: blur(20px);
+            --btn-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.15);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f8fafc;
+            --bg-secondary: rgba(255, 255, 255, 0.95);
+            --bg-tertiary: #ffffff;
+            --border-color: rgba(0, 0, 0, 0.08);
+            --text-primary: #18181b;
+            --text-secondary: #52525b;
+            --accent-blue: #2563eb;
+            --glass-blur: blur(16px);
+            --btn-gradient: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+            --shadow-glow: 0 10px 30px rgba(79, 70, 229, 0.15);
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .component-bg {
+            background-color: var(--bg-secondary);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border-right: 1px solid var(--border-color);
+        }
+
+        .component-tertiary {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .border-custom { border-color: var(--border-color); }
+        
+        input, textarea, select {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--accent-blue);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        #generateBtn {
+            background: var(--btn-gradient);
+            background-size: 200% 200%;
+            box-shadow: var(--shadow-glow);
+            border: none;
+            animation: gradientMove 3s ease infinite;
+        }
+        @keyframes gradientMove { 0% {background-position:0% 50%} 50% {background-position:100% 50%} 100% {background-position:0% 50%} }
+
+        .masonry-grid { column-count: 3; column-gap: 1rem; }
+        .masonry-item { 
+            break-inside: avoid; 
+            margin-bottom: 1rem; 
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        .masonry-item:hover { transform: translateY(-5px); border-color: var(--accent-blue); }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: var(--text-secondary); opacity: 0.3; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        @media (max-width: 1024px) {
+            .masonry-grid { column-count: 2; }
+            
+            /* 🔥 移动端核心逻辑：默认隐藏灵感面板，通过JS切换显示 */
+            #right-content-panel { display: none; } 
+            
+            /* 移动端控制面板撑满高度 (减去顶部导航栏高度 64px) */
+            .control-panel { 
+                height: auto !important;
+                min-height: calc(100vh - 64px) !important;
+                border-bottom: none !important;
+                padding-top: 10px;
+            }
+            
+            /* 隐藏原有的标题，因为顶部导航栏已经占据了视线 */
+            .mobile-header-container {
+                display: none !important;
+            }
+        }
+        @media (max-width: 480px) { 
+            .masonry-grid { 
+                column-count: 2; 
+                column-gap: 0.5rem; 
+            } 
+            .masonry-item .p-3 { padding: 0.5rem !important; } 
+            .masonry-item p { font-size: 10px !important; }
+        }
+        
+        #userCenterModal, #apiKeyModal { color: var(--text-primary); }
+        #modelDropdown button:hover { background-color: rgba(59, 130, 246, 0.1); }
+
+    </style>
+</head>
+<body class="theme-transition overflow-hidden" data-theme="dark">
+    
+    <!-- =======================================================
+         🔥 优化后的：移动端一体化顶部导航栏 (Fixed Header)
+         ======================================================= -->
+    <div class="lg:hidden fixed top-0 left-0 w-full z-[60] px-4 py-3 bg-[#09090b]/90 backdrop-blur-md border-b border-white/5 flex items-center gap-3 transition-all duration-300">
+        
+        <!-- 1. 左侧菜单图标 -->
+        <button id="mobileMenuButton" class="flex-shrink-0 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white active:scale-95 transition-all">
+            <i class="fas fa-bars text-xl"></i>
+        </button>
+
+        <!-- 2. 中间 Tab 切换 (一体化胶囊风格) -->
+        <div class="flex-1 flex p-1 bg-white/5 rounded-full border border-white/5">
+            <!-- 创作 Tab -->
+            <button id="mobileTabCreate" class="flex-1 py-1.5 text-xs font-bold rounded-full shadow-sm bg-blue-600 text-white transition-all duration-300 flex items-center justify-center gap-1">
+                <i class="fas fa-paint-brush text-[10px]"></i> 创作
+            </button>
+            <!-- 灵感 Tab -->
+            <button id="mobileTabInspire" class="flex-1 py-1.5 text-xs font-medium rounded-full text-gray-400 hover:text-gray-200 transition-all duration-300 flex items-center justify-center gap-1">
+                <i class="fas fa-fire text-[10px]"></i> 灵感
+            </button>
+        </div>
+
+    </div>
+
+    <!-- 占位符：防止内容被顶部固定导航栏遮挡 -->
+    <div class="lg:hidden h-[64px] w-full flex-shrink-0 bg-transparent"></div>
+    
+    <!-- 遮罩层 -->
+    <div id="menuOverlay" class="fixed inset-0 bg-black/50 z-[90] hidden backdrop-blur-sm transition-opacity"></div>
+
+    <!-- 主布局 -->
+    <div id="main-container" class="flex flex-col lg:flex-row h-screen w-full overflow-hidden mobile-scroll-fix">
+        
+        <!-- 左侧边栏 -->
+        <div class="side-nav-container w-20 component-bg flex flex-col items-center py-8 border-r border-custom theme-transition h-full fixed top-0 left-0 z-[100] transition-transform duration-300 -translate-x-full lg:translate-x-0 lg:static lg:transform-none flex-shrink-0 shadow-2xl">
+            <button id="closeSidebarBtn" class="lg:hidden mb-6 w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center">
+                <i class="fas fa-times"></i>
+            </button>
+
+             <div class="mb-6 text-2xl text-transparent bg-clip-text bg-gradient-to-br from-blue-400 to-purple-600">
+                <i class="fas fa-rocket"></i>
+            </div>
+            
+            <div class="flex flex-col items-center space-y-4 w-full">
+                <button id="notificationBtn" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors" title="通知">
+                    <i class="fas fa-bell text-xl"></i>
+                </button>
+                
+                <a href="https://api.fengjungpt.com" target="_blank" id="apiButton" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors font-bold text-xs no-underline">
+                    API
+                </a>
+
+                <button id="tutorialBtn" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors" title="使用手册">
+                    <i class="fas fa-book-open text-base"></i>
+                </button>
+
+                <button id="themeToggle" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors">
+                    <i class="fas fa-moon text-xl" id="themeIcon"></i>
+                </button>
+            </div>
+            
+            <div class="relative mt-auto pt-6 border-t border-custom w-full flex justify-center">
+                <button id="userButton" class="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-blue-500 transition-all">
+                     <div class="w-full h-full bg-gray-700 flex items-center justify-center"><i class="fas fa-user text-white"></i></div>
+                </button>
+                <div id="logoutMenu" class="hidden absolute bottom-0 left-16 mb-2 w-36 rounded-lg component-tertiary shadow-xl z-50 overflow-hidden">
+                    <button id="user-center-button" class="w-full px-4 py-3 text-xs text-left hover:bg-blue-500/10 text-blue-400"><i class="fas fa-id-card mr-2"></i>个人中心</button>
+                    <button id="logout-button" class="w-full px-4 py-3 text-xs text-left hover:bg-red-500/10 text-red-400 border-t border-custom"><i class="fas fa-sign-out-alt mr-2"></i>退出</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 中间控制面板 (ID: control-panel-container) -->
+        <div id="control-panel-container" class="w-full lg:w-96 h-full component-bg border-r border-custom flex flex-col theme-transition control-panel relative z-40 flex-shrink-0 shadow-xl lg:flex">
+            
+            <!-- 滚动区域 -->
+            <div class="p-6 space-y-6 overflow-y-auto flex-1 scrollbar-none flex flex-col">
+                
+                <!-- Header (PC端显示，移动端隐藏) -->
+                <div class="flex items-center justify-between mobile-header-container pl-12 lg:pl-0 flex-shrink-0">
+                    <div>
+                        <h1 class="text-xl font-extrabold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">Nano Banana</h1>
+                        <p class="text-[10px] text-gray-500 tracking-widest uppercase">AI Creative Studio</p>
+                    </div>
+                    <span class="text-[10px] px-2 py-1 rounded-full bg-green-500/10 text-green-500 border border-green-500/20 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>在线</span>
+                </div>
+
+                <!-- Model Selector -->
+                <div class="flex-shrink-0">
+                    <label class="text-xs font-bold text-gray-500 mb-2 block uppercase pl-1">AI Model</label>
+                    <div class="relative">
+                        <button id="modelSelector" class="w-full component-tertiary rounded-xl px-4 py-3 flex items-center justify-between hover:border-blue-500/50 transition-all text-left">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-2xl">🍌</span>
+                                <span class="font-medium text-sm">Nano Banana</span>
+                            </div>
+                            <i class="fas fa-chevron-down text-xs text-gray-400"></i>
+                        </button>
+                        <div id="modelDropdown" class="hidden absolute top-full left-0 right-0 mt-2 component-tertiary rounded-xl shadow-2xl z-30 overflow-hidden p-1">
+                             <div class="p-2 text-center text-xs text-gray-500">正在加载模型列表...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 上传图片 -->
+                <div class="p-3 lg:p-4 rounded-xl border border-dashed border-custom bg-opacity-50 hover:border-blue-500/50 transition-all flex-shrink-0">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-[10px] lg:text-xs font-bold text-gray-500 flex items-center gap-2">
+                            <i class="fas fa-image text-blue-500"></i> 参考图
+                        </label>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-500">Max 3</span>
+                    </div>
+                    <div id="uploadedImages" class="hidden mb-2">
+                        <div id="imageGrid" class="grid grid-cols-3 gap-2 mb-2"></div>
+                        <p class="text-[10px] text-gray-500 text-center">已上传 <span id="imageCount">0</span>/3</p>
+                    </div>
+                    <button id="uploadBtn" class="w-full h-8 lg:h-10 rounded-lg bg-opacity-50 hover:bg-blue-500/10 text-gray-500 hover:text-blue-500 text-[10px] lg:text-xs flex items-center justify-center gap-2 transition-all border border-transparent">
+                        <i class="fas fa-plus"></i> <span id="uploadBtnText">上传</span>
+                    </button>
+                </div>
+
+                <!-- Prompt -->
+                <div class="flex-shrink-0 flex flex-col mt-2 lg:mt-0" style="height: 140px;"> 
+                    <label class="text-[10px] lg:text-xs font-bold text-gray-500 mb-1 lg:mb-2 block uppercase pl-1 flex justify-between">
+                        <span>Prompt</span>
+                        <span class="text-blue-500 cursor-pointer" onclick="document.getElementById('promptInput').value=''">清空</span>
+                    </label>
+                    <div class="relative flex-1 w-full h-full">
+                        <textarea id="promptInput" 
+                            class="w-full h-full component-tertiary rounded-xl p-3 resize-none text-xs lg:text-sm leading-relaxed focus:outline-none" 
+                            style="background-color: var(--bg-tertiary) !important;"
+                            placeholder="描述你想生成的画面..." 
+                            maxlength="2000"></textarea>
+                        <div class="absolute bottom-2 right-3 text-[10px] text-gray-500"><span id="charCount">0</span>/2000</div>
+                    </div>
+                </div>
+
+                <!-- 高级设置 -->
+                <div class="flex-shrink-0 pb-4">
+                    <button id="advancedToggle" class="w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-blue-500 py-2">
+                        <span><i class="fas fa-sliders-h mr-1"></i> 高级设置</span>
+                        <i class="fas fa-chevron-right text-[10px] transition-transform" id="advancedIcon"></i>
+                    </button>
+                    
+                    <div id="advancedSettings" class="hidden mt-3 space-y-4 pl-1">
+                         <!-- 生成数量 -->
+                         <div>
+                            <label class="text-[10px] text-gray-500 mb-1 block">生成数量</label>
+                            <select id="quantitySelect" class="w-full component-tertiary rounded-lg px-3 py-2 text-xs outline-none cursor-pointer">
+                                <option value="1">1 张</option>
+                                <option value="2">2 张</option>
+                                <option value="3">3 张</option>
+                                <option value="4">4 张</option>
+                            </select>
+                        </div>
+
+                        <!-- 画面比例 -->
+                        <div id="aspect-ratio-box" class="hidden transition-all duration-300">
+                            <label class="text-[10px] text-gray-500 mb-1 block flex items-center gap-1">
+                                画面比例 <span class="text-blue-500 text-[9px] border border-blue-500/30 px-1 rounded">2.0 模型专属</span>
+                            </label>
+                            <select id="aspectRatioSelect" class="w-full component-tertiary rounded-lg px-3 py-2 text-xs outline-none cursor-pointer">
+                                <option value="1:1">1:1 (正方形)</option>
+                                <option value="3:4">3:4 (手机竖屏)</option>
+                                <option value="4:3">4:3 (iPad/老照片)</option>
+                                <option value="16:9">16:9 (电脑横屏)</option>
+                                <option value="9:16">9:16 (抖音/全屏)</option>
+                                <option value="21:9">21:9 (电影宽屏)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 底部生成按钮 -->
+            <div class="p-6 component-bg flex-shrink-0" style="border-top: 1px solid var(--border-color);">
+                <button id="generateBtn" class="w-full py-4 px-6 text-white font-bold rounded-xl flex items-center justify-center gap-3 group relative overflow-hidden transition-transform active:scale-95">
+                    <span>立即生成</span><i class="fas fa-gem text-lg animate-pulse"></i>
+                </button>
+                <p class="text-[10px] text-gray-500 text-center mt-3"><i class="fas fa-bolt text-yellow-500 mr-1"></i> 预计耗时 10-30 秒</p>
+            </div>
+        </div>
+
+        <!-- 右侧内容区 (ID: right-content-panel) -->
+        <div id="right-content-panel" class="flex-1 theme-transition flex flex-col lg:h-screen relative overflow-hidden lg:flex">
+            <div class="p-6 border-b border-custom backdrop-blur-md sticky top-0 z-30 flex items-center justify-between">
+                 <div class="flex rounded-full p-1 border border-custom component-tertiary">
+                    <button id="inspirationTab" class="px-4 lg:px-6 py-2 rounded-full bg-blue-500/10 text-blue-500 text-xs font-bold transition-all flex items-center gap-2">
+                        <i class="fas fa-fire"></i> 灵感
+                    </button>
+                    <button id="myWorksTab" class="px-4 lg:px-6 py-2 rounded-full text-gray-500 hover:text-blue-500 transition-all text-xs font-bold flex items-center gap-2">
+                        <i class="fas fa-folder-open"></i> 我的
+                    </button>
+                </div>
+                <div class="hidden sm:flex relative">
+                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+                     <input type="text" placeholder="搜索..." class="pl-8 pr-4 py-1.5 rounded-full text-xs component-tertiary w-40 focus:w-56 transition-all">
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 lg:p-10 scrollbar-thin pb-24 lg:pb-10">
+                <h2 class="text-xl font-bold mb-6">创意灵感库</h2>
+                
+                <!-- 动态灵感容器 -->
+                <div class="masonry-grid w-full pb-20" id="inspirationContainer">
+                    <div class="text-center text-gray-500 text-xs w-full py-10">
+                        <i class="fas fa-circle-notch fa-spin mr-2"></i> 正在从云端获取灵感...
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 个人中心弹窗 -->
+    <div id="userCenterModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center">
+         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="relative component-bg w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+            <div class="h-24 bg-gradient-to-r from-blue-500 to-purple-600 relative">
+                <button type="button" id="closeUserCenterBtn" class="absolute top-3 right-3 text-white text-xl w-8 h-8 flex items-center justify-center hover:bg-white/20 rounded-full transition-colors">×</button>
+            </div>
+            <div class="px-6 pb-6 relative">
+                <div class="w-20 h-20 rounded-full bg-gray-900 border-4 border-[#1e1e24] -mt-10 mb-4 flex items-center justify-center shadow-lg">
+                    <i class="fas fa-user text-3xl text-gray-400"></i>
+                </div>
+                <div class="flex justify-between items-start mb-6">
+                    <div><h2 id="modalUserName" class="text-xl font-bold">加载中...</h2><p id="modalUserId" class="text-xs text-gray-500">ID: -</p></div>
+                    <div id="apiKeyStatus"><span id="apiKeyStatusBadge" class="text-[10px] px-2 py-1 rounded-full bg-red-500/20 text-red-500">未配置</span></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="component-tertiary rounded-xl p-4 text-center"><div id="modalDrawingPoints" class="text-lg font-bold text-blue-500">0</div><div class="text-xs text-gray-500">积分</div></div>
+                    <div class="component-tertiary rounded-xl p-4 text-center"><div id="modalCreationCount" class="text-lg font-bold text-purple-500">0</div><div class="text-xs text-gray-500">创作</div></div>
+                </div>
+                <button id="checkinBtn" class="w-full py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold rounded-xl mb-2 relative overflow-hidden">每日签到</button>
+                <div class="text-center text-xs text-gray-500 mb-4"><span id="checkinCountText"></span></div>
+                <div class="flex gap-3">
+                    <button id="configApiKeyBtn" class="flex-1 py-2 border border-blue-500/50 text-blue-500 rounded-lg text-xs">配置 Key</button>
+                    <button id="deleteApiKeyBtn" class="flex-1 py-2 border border-red-500/50 text-red-500 rounded-lg text-xs hidden">删除 Key</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key 弹窗 -->
+    <div id="apiKeyModal" class="hidden fixed inset-0 z-[71] flex items-center justify-center">
+         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="apiKeyBackdrop"></div>
+        <div class="relative component-bg w-full max-w-md mx-4 rounded-xl p-6 shadow-2xl">
+            <h2 class="text-lg font-bold mb-4">配置 API Key</h2>
+            <p class="text-xs text-gray-500 mb-3">积分用完后将使用KEY进行绘图</p>
+            <input id="apiKeyInput" type="password" class="w-full component-tertiary rounded-lg px-4 py-3 text-sm mb-4" placeholder="sk-...">
+             <input id="apiBaseUrlInput" type="text" class="w-full component-tertiary rounded-lg px-4 py-3 text-sm mb-4" value="https://api.fengjungpt.com">
+            <div class="flex gap-3">
+                <button id="saveApiKeyBtn" class="flex-1 bg-blue-600 text-white py-2 rounded-lg">保存</button>
+                <button id="cancelApiKeyBtn" class="flex-1 component-tertiary py-2 rounded-lg">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 教程弹窗 -->
+    <div id="tutorialModal" class="hidden fixed inset-0 z-[80] flex items-center justify-center">
+         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="tutorialBackdrop"></div>
+        <div class="relative w-full h-full max-w-6xl max-h-[90vh] mx-4 rounded-2xl shadow-2xl overflow-hidden bg-[#09090b] border border-white/10 flex flex-col animate-[fadeIn_0.3s_ease-out]">
+            <button id="closeTutorialBtn" class="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">
+                <i class="fas fa-times"></i>
+            </button>
+            <iframe src="./tutorial.html" class="w-full h-full border-none" style="background-color: #09090b;"></iframe>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 🔥 移动端 Tab 切换逻辑 (样式更新版)
+        const mobileTabCreate = document.getElementById('mobileTabCreate');
+        const mobileTabInspire = document.getElementById('mobileTabInspire');
+        const controlPanel = document.getElementById('control-panel-container');
+        const rightContent = document.getElementById('right-content-panel');
+
+        // 定义样式常量
+        const activeClass = "flex-1 py-1.5 text-xs font-bold rounded-full shadow-sm bg-blue-600 text-white transition-all duration-300 flex items-center justify-center gap-1";
+        const inactiveClass = "flex-1 py-1.5 text-xs font-medium rounded-full text-gray-400 hover:text-gray-200 transition-all duration-300 flex items-center justify-center gap-1";
+
+        if (mobileTabCreate && mobileTabInspire) {
+            mobileTabCreate.addEventListener('click', () => {
+                // 切到创作
+                controlPanel.style.display = 'flex';
+                rightContent.style.display = 'none';
+                
+                // 激活样式
+                mobileTabCreate.className = activeClass;
+                mobileTabInspire.className = inactiveClass;
+            });
+
+            mobileTabInspire.addEventListener('click', () => {
+                // 切到灵感
+                controlPanel.style.display = 'none';
+                rightContent.style.display = 'flex';
+
+                // 激活样式
+                mobileTabInspire.className = activeClass;
+                mobileTabCreate.className = inactiveClass;
+                
+                // 触发加载
+                loadInspirationsFromBackend();
+            });
+        }
+
+        // === 原有逻辑 ===
+        const userCenterModal = document.getElementById('userCenterModal');
+        const closeUserCenterBtn = document.getElementById('closeUserCenterBtn');
+        function hideUserCenter() { userCenterModal.classList.add('hidden'); }
+        if (closeUserCenterBtn) closeUserCenterBtn.addEventListener('click', (e) => { e.stopPropagation(); hideUserCenter(); });
+        if (userCenterModal) userCenterModal.addEventListener('click', (e) => { if (e.target === userCenterModal) hideUserCenter(); });
+
+        const apiKeyModal = document.getElementById('apiKeyModal');
+        const apiKeyBackdrop = document.getElementById('apiKeyBackdrop');
+        const cancelApiKeyBtn = document.getElementById('cancelApiKeyBtn');
+        function hideApiKeyModal() { apiKeyModal.classList.add('hidden'); }
+        if(apiKeyBackdrop) apiKeyBackdrop.addEventListener('click', hideApiKeyModal);
+        if(cancelApiKeyBtn) cancelApiKeyBtn.addEventListener('click', hideApiKeyModal);
+
+        const tutorialBtn = document.getElementById('tutorialBtn');
+        const tutorialModal = document.getElementById('tutorialModal');
+        const closeTutorialBtn = document.getElementById('closeTutorialBtn');
+        const tutorialBackdrop = document.getElementById('tutorialBackdrop');
+        function toggleTutorial(show) {
+            if(show) tutorialModal.classList.remove('hidden');
+            else tutorialModal.classList.add('hidden');
+        }
+        if(tutorialBtn) tutorialBtn.addEventListener('click', () => toggleTutorial(true));
+        if(closeTutorialBtn) closeTutorialBtn.addEventListener('click', () => toggleTutorial(false));
+        if(tutorialBackdrop) tutorialBackdrop.addEventListener('click', () => toggleTutorial(false));
+
+        const mobileBtn = document.getElementById('mobileMenuButton');
+        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+        const menuOverlay = document.getElementById('menuOverlay');
+        const sidebar = document.querySelector('.side-nav-container');
+
+        if(mobileBtn) mobileBtn.addEventListener('click', () => {
+            sidebar.style.transform = 'translateX(0%)';
+            menuOverlay.classList.remove('hidden');
+        });
+        function closeSidebar() {
+            sidebar.style.transform = 'translateX(-100%)';
+            menuOverlay.classList.add('hidden');
+        }
+        if(menuOverlay) menuOverlay.addEventListener('click', closeSidebar);
+        if(closeSidebarBtn) closeSidebarBtn.addEventListener('click', closeSidebar);
+
+        const userBtn = document.getElementById('userButton');
+        const logoutMenu = document.getElementById('logoutMenu');
+        const userCenterBtn = document.getElementById('user-center-button');
+        if(userBtn) {
+            userBtn.addEventListener('click', (e) => { 
+                e.stopPropagation(); 
+                logoutMenu.classList.toggle('hidden'); 
+            });
+            document.addEventListener('click', () => logoutMenu?.classList.add('hidden'));
+        }
+
+        if(userCenterBtn) {
+            userCenterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userCenterModal.classList.remove('hidden');
+                logoutMenu.classList.add('hidden');
+                fetchUserInfo(); 
+            });
+        }
+
+        const checkinBtn = document.getElementById('checkinBtn');
+        const configApiKeyBtn = document.getElementById('configApiKeyBtn');
+        const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+        const deleteApiKeyBtn = document.getElementById('deleteApiKeyBtn');
+
+        if(checkinBtn) checkinBtn.addEventListener('click', handleCheckin);
+        if(configApiKeyBtn) configApiKeyBtn.addEventListener('click', () => apiKeyModal.classList.remove('hidden'));
+        if(saveApiKeyBtn) saveApiKeyBtn.addEventListener('click', saveApiKey);
+        if(deleteApiKeyBtn) deleteApiKeyBtn.addEventListener('click', deleteApiKey);
+
+        document.getElementById('logout-button')?.addEventListener('click', () => { 
+            if(confirm('退出?')) { 
+                localStorage.clear(); 
+                sessionStorage.clear(); 
+                window.location.href = '/login.html'; 
+            }
+        });
+        
+        const selector = document.getElementById('modelSelector');
+        const dropdown = document.getElementById('modelDropdown');
+        if(selector) {
+            selector.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.toggle('hidden'); });
+            document.addEventListener('click', () => dropdown?.classList.add('hidden'));
+        }
+    });
+
+    function formatNumber(num) { return num >= 1000 ? (num/1000).toFixed(1) + 'k' : num; }
+
+    async function fetchUserInfo() {
+        try {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (!token) return; 
+
+            const response = await fetch('/api/user/info', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                const user = data.data;
+                document.getElementById('modalUserName').textContent = user.username || user.name || '用户';
+                document.getElementById('modalUserId').textContent = 'ID: ' + (user.id || '-');
+                document.getElementById('modalDrawingPoints').textContent = formatNumber(user.drawing_points || 0);
+                document.getElementById('modalCreationCount').textContent = user.creation_count || 0;
+                document.getElementById('checkinCountText').textContent = `签到次数: ${user.checkin_count || 0}`;
+                
+                const checkinBtn = document.getElementById('checkinBtn');
+                if (user.can_checkin) {
+                    checkinBtn.disabled = false;
+                    checkinBtn.style.opacity = '1';
+                    checkinBtn.innerText = '每日签到';
+                    checkinBtn.classList.remove('cursor-not-allowed');
+                } else {
+                    checkinBtn.disabled = true;
+                    checkinBtn.style.opacity = '0.5';
+                    checkinBtn.innerText = '今日已签到';
+                    checkinBtn.classList.add('cursor-not-allowed');
+                }
+
+                await fetchUserApiKey();
+            }
+        } catch (error) { console.error('Info Error:', error); }
+    }
+
+    async function handleCheckin() {
+        try {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+            const response = await fetch('/api/user/checkin', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                if(window.showSuccessToast) window.showSuccessToast(`签到成功！获得 ${data.data.points_earned} 积分`);
+                else alert(`签到成功！获得 ${data.data.points_earned} 积分`);
+                fetchUserInfo(); 
+            } else {
+                if(window.showErrorToast) window.showErrorToast(data.error || '签到失败');
+                else alert(data.error || '签到失败');
+            }
+        } catch (error) { 
+            console.error('签到错误:', error);
+        }
+    }
+
+    async function fetchUserApiKey() {
+        try {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch('/api/user/api-keys', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            const data = await response.json();
+            const statusBadge = document.getElementById('apiKeyStatusBadge');
+            const deleteBtn = document.getElementById('deleteApiKeyBtn');
+            const configBtn = document.getElementById('configApiKeyBtn');
+
+            if (response.ok && data.success && data.has_key) {
+                statusBadge.innerText = '已配置';
+                statusBadge.className = 'text-[10px] px-2 py-1 rounded-full bg-green-500/20 text-green-500';
+                configBtn.innerText = '修改 Key';
+                deleteBtn.classList.remove('hidden');
+            } else {
+                statusBadge.innerText = '未配置';
+                statusBadge.className = 'text-[10px] px-2 py-1 rounded-full bg-red-500/20 text-red-500';
+                configBtn.innerText = '配置 Key';
+                deleteBtn.classList.add('hidden');
+            }
+        } catch (error) { console.error('获取 API Key 失败:', error); }
+    }
+
+    async function saveApiKey() {
+        const apiKey = document.getElementById('apiKeyInput').value.trim();
+        const apiBaseUrl = document.getElementById('apiBaseUrlInput').value.trim();
+        if (!apiKey) return;
+
+        try {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const response = await fetch('/api/user/api-keys', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: apiKey, api_base_url: apiBaseUrl })
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                if(window.showSuccessToast) window.showSuccessToast('保存成功'); else alert('保存成功');
+                document.getElementById('apiKeyModal').classList.add('hidden');
+                fetchUserApiKey();
+            } else { 
+                if(window.showErrorToast) window.showErrorToast(data.error || '保存失败'); else alert(data.error || '保存失败');
+            }
+        } catch (error) { console.error('保存失败:', error); }
+    }
+
+    async function deleteApiKey() {
+        if(!confirm('确定删除配置的 Key 吗？')) return;
+        try {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const response = await fetch('/api/user/api-keys', {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if(response.ok) { 
+                if(window.showSuccessToast) window.showSuccessToast('已删除'); else alert('已删除');
+                fetchUserApiKey();
+            }
+        } catch (error) { console.error('删除失败:', error); }
+    }
+
+    // ==========================================
+    // 🔥 核心功能：自动从后台加载灵感数据
+    // ==========================================
+    async function loadInspirationsFromBackend() {
+        const container = document.getElementById('inspirationContainer');
+        if (!container) return;
+        
+        if(container.innerHTML.trim() === '') {
+             container.innerHTML = '<div class="text-center text-gray-500 text-xs w-full py-10"><i class="fas fa-circle-notch fa-spin mr-2"></i> 正在从云端获取灵感...</div>';
+        }
+
+        try {
+            const res = await fetch('/api/image/inspirations');
+            const json = await res.json();
+            
+            if (json.success && json.data.length > 0) {
+                container.innerHTML = ''; 
+                
+                json.data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'masonry-item group cursor-pointer animate-[fadeIn_0.5s_ease-out]';
+                    div.setAttribute('data-prompt', item.prompt);
+                    
+                    div.onclick = function() {
+                        const promptInput = document.getElementById('promptInput');
+                        // 如果在移动端点了灵感，自动切回创作页面
+                        const mobileTabCreate = document.getElementById('mobileTabCreate');
+                        if(window.innerWidth <= 1024 && mobileTabCreate) {
+                            mobileTabCreate.click();
+                        }
+                        
+                        if(promptInput) {
+                            promptInput.value = item.prompt;
+                            promptInput.focus();
+                            promptInput.style.borderColor = '#3b82f6';
+                            setTimeout(() => promptInput.style.borderColor = '', 300);
+                        }
+                    };
+
+                    div.innerHTML = `
+                        <div class="relative overflow-hidden w-full h-full bg-gray-900 rounded-xl">
+                            <img src="${item.url}" class="w-full h-auto block group-hover:scale-110 transition-transform duration-700 ease-in-out" loading="lazy">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-4">
+                                <p class="text-xs text-gray-100 line-clamp-4 leading-relaxed font-medium drop-shadow-md">
+                                    ${item.prompt || '暂无提示词'}
+                                </p>
+                                <div class="mt-3 flex items-center gap-2 text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+                                    <i class="fas fa-magic animate-pulse"></i> <span>点击应用提示词</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = '<div class="text-center text-gray-500 text-xs w-full py-10">暂无灵感数据，请去后台发布</div>';
+            }
+        } catch (error) {
+            console.error('加载灵感失败:', error);
+            container.innerHTML = '<div class="text-center text-gray-500 text-xs w-full py-10">加载失败，请刷新重试</div>';
+        }
+    }
+
+    const inspirationTabBtn = document.getElementById('inspirationTab');
+    if(inspirationTabBtn) {
+        inspirationTabBtn.addEventListener('click', () => {
+             const container = document.getElementById('inspirationContainer');
+             if(container) container.style.display = 'block';
+             loadInspirationsFromBackend();
+        });
+    }
+
+    loadInspirationsFromBackend();
+
+</script>
+
+<style>
+    #my-native-lightbox {
+        display: none;
+        position: fixed;
+        z-index: 2147483647;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.92);
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        backdrop-filter: blur(5px);
+        transition: opacity 0.3s;
+    }
+    #my-native-lightbox img {
+        max-width: 95vw;
+        max-height: 95vh;
+        object-fit: contain;
+        border-radius: 4px;
+        box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        border: 1px solid rgba(255,255,255,0.2);
+        cursor: zoom-out;
+        transition: transform 0.2s;
+    }
+    .lightbox-tip {
+        color: #aaa;
+        margin-top: 15px;
+        font-size: 14px;
+        font-family: sans-serif;
+        pointer-events: none;
+    }
+    img { cursor: zoom-in !important; pointer-events: auto !important; }
+    [data-prompt] img { cursor: pointer !important; }
+</style>
+
+<div id="my-native-lightbox">
+    <img id="lightbox-img" src="" alt="预览图片">
+    <div class="lightbox-tip">点击任意处关闭</div>
+</div>
+
+<script>
+(function() {
+    var lightbox = document.getElementById('my-native-lightbox');
+    var lightboxImg = document.getElementById('lightbox-img');
+
+    lightbox.addEventListener('click', function() {
+        lightbox.style.display = 'none';
+        lightboxImg.src = '';
+    });
+
+    window.addEventListener('click', function(e) {
+        var target = e.target;
+        if (target.tagName !== 'IMG') return;
+        if (target.closest('[data-prompt]')) return; 
+        if (target.id === 'lightbox-img') return;
+        if (target.naturalWidth < 50 || target.naturalHeight < 50) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        lightboxImg.src = target.src;
+        lightbox.style.display = 'flex';
+
+    }, true);
+})();
+</script>
+
+    <!-- 公告弹窗 -->
+    <div id="noticeModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-300" id="noticeBackdrop"></div>
+        <div class="relative w-full max-w-lg component-bg rounded-[20px] border border-white/10 shadow-2xl transform transition-all scale-100 overflow-hidden animate-[fadeIn_0.3s_ease-out]">
+            <button type="button" id="closeNoticeBtn" class="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors z-20" style="color: var(--text-secondary);">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <div class="p-8">
+                <div class="mb-6">
+                    <h3 class="text-2xl font-bold tracking-tight mb-2" style="color: var(--text-primary);">系统公告</h3>
+                    <p class="text-xs opacity-50 flex items-center gap-2 font-mono" style="color: var(--text-secondary);">
+                        <span id="noticeTime">Loading...</span>
+                    </p>
+                </div>
+                <div id="noticeContentDisplay" class="text-base whitespace-pre-wrap scrollbar-none" style="background-color: transparent !important; border: none !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; min-height: 100px; max-height: 60vh; overflow-y: auto; line-height: 1.8; color: var(--text-primary) !important;">
+                    正在获取最新公告...
+                </div>
+            </div>
+            <div class="h-[2px] w-full bg-gradient-to-r from-blue-500/50 via-purple-500/50 to-pink-500/50 opacity-50"></div>
+        </div>
+        <button id="closeNoticeMainBtn" class="hidden"></button>
+    </div>
+</body>
+</html>

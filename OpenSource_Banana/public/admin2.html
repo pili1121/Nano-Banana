@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级管理员后台 - 修复版</title>
+    <style>
+        body { font-family: sans-serif; background: #f3f4f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { width: 400px; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
+        input { width: 100%; padding: 15px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #4f46e5; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #4338ca; }
+        #msg { margin-top: 15px; color: red; font-size: 14px; min-height: 20px; }
+        
+        /* 后台表格样式 */
+        #adminPanel { display: none; width: 90%; max-width: 1000px; margin-top: 20px; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #eee; padding: 12px; text-align: left; }
+        th { background: #f9fafb; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. 登录界面 -->
+    <div id="loginPanel" class="container">
+        <h2>🛡️ 管理员登录</h2>
+        <form onsubmit="handleLogin(event)">
+            <input type="email" id="email" placeholder="邮箱" value="925626799@qq.com" required>
+            <input type="password" id="password" placeholder="密码" required>
+            <button type="submit" id="loginBtn">登 录</button>
+        </form>
+        <div id="msg"></div>
+    </div>
+
+    <!-- 2. 后台界面 -->
+    <div id="adminPanel" class="container">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>🚀 用户管理</h2>
+            <button onclick="location.reload()" style="width:auto; padding:5px 15px; background:#ef4444;">退出</button>
+        </div>
+        <button onclick="fetchUsers()" style="width:auto; margin-bottom:10px;">🔄 刷新数据</button>
+        <table id="userTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>用户</th>
+                    <th>邮箱</th>
+                    <th>积分</th>
+                    <th>角色</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        // 全局变量存 Token
+        let authToken = '';
+
+        async function handleLogin(e) {
+            e.preventDefault(); // 阻止表单默认提交刷新
+            
+            const btn = document.getElementById('loginBtn');
+            const msg = document.getElementById('msg');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            btn.innerText = '正在登录...';
+            btn.disabled = true;
+            msg.innerText = '';
+
+            try {
+                console.log('尝试登录:', email);
+                
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+                console.log('服务器返回:', data);
+
+                if (data.success) {
+                    // 登录成功
+                    msg.innerText = '登录成功！正在跳转...';
+                    msg.style.color = 'green';
+                    
+                    authToken = data.data.token;
+                    
+                    // 检查权限
+                    if(data.data.user.role !== 'admin') {
+                         msg.innerText = '登录成功，但该账号不是管理员！';
+                         msg.style.color = 'red';
+                         btn.innerText = '登录';
+                         btn.disabled = false;
+                         return;
+                    }
+
+                    // 切换界面
+                    document.getElementById('loginPanel').style.display = 'none';
+                    document.getElementById('adminPanel').style.display = 'block';
+                    
+                    // 加载数据
+                    fetchUsers();
+
+                } else {
+                    // 登录失败
+                    msg.innerText = '错误: ' + (data.error || '未知错误');
+                    btn.innerText = '登录';
+                    btn.disabled = false;
+                }
+
+            } catch (err) {
+                console.error(err);
+                msg.innerText = '网络请求失败: ' + err.message;
+                btn.innerText = '登录';
+                btn.disabled = false;
+            }
+        }
+
+        async function fetchUsers() {
+            try {
+                const res = await fetch('/api/admin/users', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                const data = await res.json();
+                
+                if(data.success) {
+                    const tbody = document.querySelector('#userTable tbody');
+                    tbody.innerHTML = data.data.map(u => `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>${u.username}</td>
+                            <td>${u.email}</td>
+                            <td>${u.drawing_points}</td>
+                            <td>${u.role}</td>
+                            <td><button onclick="addPoints(${u.id})" style="width:auto; padding:5px 10px; font-size:12px;">+10分</button></td>
+                        </tr>
+                    `).join('');
+                } else {
+                    alert('加载失败: ' + data.error);
+                }
+            } catch(e) {
+                alert('加载出错: ' + e.message);
+            }
+        }
+        
+        async function addPoints(uid) {
+            if(!confirm('确定加分吗？')) return;
+            const res = await fetch('/api/admin/users/points', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken 
+                },
+                body: JSON.stringify({ userId: uid, points: 10 })
+            });
+            const d = await res.json();
+            if(d.success) { alert('成功'); fetchUsers(); }
+            else alert('失败');
+        }
+    </script>
+</body>
+</html>

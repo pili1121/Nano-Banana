@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nano Banana Pro 使用手册</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Fira+Code:wght@400&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+        :root {
+            /* 核心色板 */
+            --bg-deep: #09090b;
+            --bg-card: rgba(24, 24, 27, 0.6);
+            --bg-card-hover: rgba(39, 39, 42, 0.8);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary-purple: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.4);
+            --text-main: #ffffff;
+            --text-muted: #a1a1aa;
+            --accent-cyan: #22d3ee;
+            --accent-pink: #f472b6;
+            --accent-green: #10b981;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(34, 211, 238, 0.05) 0%, transparent 25%);
+            color: var(--text-main);
+            /* 增加中文字体支持 */
+            font-family: 'Inter', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 60px;
+            min-height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 1080px;
+            width: 100%;
+            animation: fadeIn 0.8s ease-out;
+            padding-bottom: 100px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 标题排版 */
+        .header { margin-bottom: 60px; }
+        .header h1 {
+            font-size: 42px; font-weight: 700; letter-spacing: -1px; margin: 0 0 12px 0;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .header p { font-size: 16px; color: var(--text-muted); font-weight: 300; }
+
+        /* 章节分割线 - 字体调整 */
+        .section-label {
+            font-size: 13px; letter-spacing: 1px; font-weight: 500;
+            color: var(--text-muted); margin: 60px 0 24px 0; display: flex; align-items: center; gap: 10px;
+        }
+        .section-label::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(to right, var(--border-color), transparent);
+        }
+
+        /* --- 01. 模型卡片 --- */
+        .models-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+        }
+        .model-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color); border-radius: 20px; padding: 30px;
+            position: relative; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; height: 220px;
+        }
+        .model-card:hover {
+            transform: translateY(-5px); border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
+        }
+        /* 鼠标光效 */
+        .model-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.06), transparent 40%);
+            opacity: 0; transition: opacity 0.4s; pointer-events: none;
+        }
+        .model-card:hover::before { opacity: 1; }
+
+        .tag {
+            font-size: 11px; padding: 4px 10px; border-radius: 100px; font-weight: 600;
+            width: fit-content; margin-bottom: 20px; letter-spacing: 0.5px;
+        }
+        .card-1 .tag { color: var(--accent-cyan); background: rgba(34, 211, 238, 0.1); border: 1px solid rgba(34, 211, 238, 0.2); }
+        .card-2 .tag { color: var(--accent-pink); background: rgba(244, 114, 182, 0.1); border: 1px solid rgba(244, 114, 182, 0.2); }
+        .card-3 { border: 1px solid rgba(139, 92, 246, 0.3); background: linear-gradient(180deg, rgba(24,24,27,0.8) 0%, rgba(139,92,246,0.05) 100%); }
+        .card-3 .tag { color: #fff; background: var(--primary-purple); box-shadow: 0 0 15px var(--primary-glow); border: none; }
+
+        .model-name { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #fff; }
+        .model-desc { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+        .speed-bar { margin-top: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+        .bar-bg { flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 2px; }
+
+        /* --- 02. 尺寸逻辑 --- */
+        .logic-container { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .logic-box {
+            background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; padding: 40px;
+        }
+        .logic-title { font-size: 16px; font-weight: 600; margin-bottom: 30px; display: flex; align-items: center; gap: 8px; }
+        .visual-flow { display: flex; align-items: center; justify-content: space-between; margin: 40px 0; position: relative; }
+        .node { display: flex; flex-direction: column; align-items: center; gap: 12px; z-index: 2; }
+        .node-icon {
+            width: 50px; height: 50px; background: #27272a; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); transition: 0.3s;
+        }
+        .node-label { font-size: 12px; color: var(--text-muted); }
+        .connector { flex: 1; height: 2px; background: #27272a; position: relative; margin: 0 10px; top: -14px; }
+        .connector::after {
+            content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 0%;
+            background: var(--primary-purple); animation: flowLine 2s infinite ease-in-out;
+        }
+        .highlight .node-icon { background: rgba(139, 92, 246, 0.1); border-color: var(--primary-purple); color: #fff; box-shadow: 0 0 15px rgba(139, 92, 246, 0.2); }
+        .locked-path .connector { border-top: 1px dashed #52525b; background: transparent; }
+        .active-path .connector::after { width: 100%; }
+        .info-text {
+            background: rgba(255,255,255,0.03); border-radius: 8px; padding: 16px; font-size: 13px; color: var(--text-muted); line-height: 1.6; border-left: 2px solid var(--border-color);
+        }
+        .highlight .info-text { border-left-color: var(--primary-purple); background: linear-gradient(90deg, rgba(139,92,246,0.05), transparent); }
+
+        /* --- 03. 额度限制 --- */
+        .limit-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 24px; }
+        .limit-card {
+            background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; padding: 30px;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        
+        .quota-circle {
+            width: 100%; height: 8px; background: #27272a; border-radius: 4px; overflow: hidden; margin: 15px 0;
+        }
+        .quota-fill { width: 60%; height: 100%; background: var(--text-main); }
+        
+        .big-number { font-size: 48px; font-weight: 700; color: #fff; line-height: 1; letter-spacing: -2px;}
+        .big-number.infinite {
+            background: linear-gradient(to right, var(--accent-cyan), var(--primary-purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 56px;
+        }
+        
+        .sub-label { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-bottom: 5px; }
+
+        /* --- 04. API配置步骤 --- */
+        .api-guide-box {
+            background: linear-gradient(145deg, rgba(24,24,27,0.6), rgba(9,9,11,0.8));
+            border: 1px solid var(--border-color); border-radius: 20px; padding: 40px;
+        }
+        .step-list { display: flex; flex-direction: column; gap: 30px; margin-top: 30px; }
+        .step-item { display: flex; gap: 20px; }
+        
+        .step-num {
+            flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: #27272a; color: var(--text-muted);
+            display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; border: 1px solid var(--border-color);
+        }
+        .step-content h4 { margin: 0 0 5px 0; color: #fff; font-size: 16px; }
+        .step-content p { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+
+        /* 代码块样式 */
+        .code-block {
+            background: #000; border: 1px solid #333; border-radius: 12px; padding: 20px; margin-top: 20px; position: relative;
+        }
+        .code-header {
+            position: absolute; top: 0; left: 0; width: 100%; height: 30px; background: #1a1a1a; border-bottom: 1px solid #333;
+            border-radius: 12px 12px 0 0; display: flex; align-items: center; padding-left: 15px; gap: 6px;
+        }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #333; }
+        .code-content {
+            margin-top: 20px; font-family: 'Fira Code', monospace; font-size: 14px; color: var(--accent-green); word-break: break-all;
+        }
+        .warning-tag {
+            display: inline-flex; align-items: center; gap: 6px; background: rgba(239, 68, 68, 0.1); color: #f87171;
+            padding: 4px 12px; border-radius: 6px; font-size: 12px; margin-top: 10px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .models-grid, .logic-container, .limit-grid { grid-template-columns: 1fr; }
+        }
+        
+        @keyframes flowLine {
+            0% { width: 0%; left: 0; opacity: 0.5; }
+            50% { width: 100%; left: 0; opacity: 1; }
+            100% { width: 100%; left: 100%; opacity: 0; }
+        }
+        
+        svg { width: 20px; height: 20px; stroke-width: 2; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>创作指南</h1>
+        <p>探索 Nano Banana 模型能力、参数逻辑与 API 接入指南</p>
+    </div>
+
+    <!-- Section 1: Models -->
+    <div class="section-label">01 / AI 模型能力矩阵</div>
+    <div class="models-grid">
+        <div class="model-card card-1">
+            <div>
+                <div class="tag">Lightning Fast</div>
+                <div class="model-name">Nano Banana</div>
+                <div class="model-desc">极速推理引擎，专注于快速验证创意草图。</div>
+            </div>
+            <div class="speed-bar">
+                <span>生成速度</span>
+                <div class="bar-bg"><div class="bar-fill" style="width: 95%; background: var(--accent-cyan);"></div></div>
+            </div>
+        </div>
+        <div class="model-card card-2">
+            <div>
+                <div class="tag">High Definition</div>
+                <div class="model-name">Nano Banana-HD</div>
+                <div class="model-desc">增强纹理细节与光影表现，适合高品质成图。</div>
+            </div>
+            <div class="speed-bar">
+                <span>生成速度</span>
+                <div class="bar-bg"><div class="bar-fill" style="width: 70%; background: var(--accent-pink);"></div></div>
+            </div>
+        </div>
+        <div class="model-card card-3">
+            <div>
+                <div class="tag">旗舰版本 v2.0</div>
+                <div class="model-name">Nano Banana 2.0</div>
+                <div class="model-desc">最新架构，更强的语义理解与复杂的构图控制力。</div>
+            </div>
+            <div class="speed-bar">
+                <span>画质精度</span>
+                <div class="bar-bg"><div class="bar-fill" style="width: 100%; background: var(--primary-purple);"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Logic -->
+    <div class="section-label">02 / 画幅尺寸生成逻辑</div>
+    <div class="logic-container">
+        <div class="logic-box">
+            <div class="logic-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                基础模式 (Standard / HD)
+            </div>
+            <div class="visual-flow locked-path">
+                <div class="node"><div class="node-icon">图</div><span class="node-label">垫图 (16:9)</span></div>
+                <div class="connector"></div>
+                <div class="node"><div class="node-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div><span class="node-label">强制锁定</span></div>
+                <div class="connector"></div>
+                <div class="node"><div class="node-icon" style="border-style:dashed;">出</div><span class="node-label">成图 (16:9)</span></div>
+            </div>
+            <div class="info-text">
+                <strong>尺寸镜像机制：</strong><br>文生图/图生图无法手动调整尺寸，系统将严格由你的“垫图”比例决定最终成图比例。
+            </div>
+        </div>
+        <div class="logic-box highlight">
+            <div class="logic-title">
+                <svg style="color:var(--primary-purple);" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                专业模式 (Banana 2.0)
+            </div>
+            <div class="visual-flow active-path">
+                <div class="node"><div class="node-icon">图</div><span class="node-label">参考图</span></div>
+                <div class="connector"></div>
+                <div class="node">
+                    <div class="node-icon" style="color:white; border-color:var(--primary-purple); background:rgba(139,92,246,0.2);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </div>
+                    <span class="node-label" style="color:#fff;">高级设置</span>
+                </div>
+                <div class="connector"></div>
+                <div class="node"><div class="node-icon">自</div><span class="node-label">自定义尺寸</span></div>
+            </div>
+            <div class="info-text">
+                <strong>全参数解锁：</strong><br>在 Prompt 输入框下方的 <span style="color:var(--primary-purple); cursor:pointer;">高级设置 ></span> 中，你可以自由定义宽高比，不受垫图限制。
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Usage Limits -->
+    <div class="section-label">03 / 权益与额度说明</div>
+    <div class="limit-grid">
+        <!-- Free Plan -->
+        <div class="limit-card">
+            <div class="sub-label">免费基础版</div>
+            <div class="big-number">20 <span style="font-size:18px; color:var(--text-muted); font-weight:400;">次 / 天</span></div>
+            <div class="quota-circle"><div class="quota-fill"></div></div>
+            <div style="font-size:13px; color:var(--text-muted);">
+                每日免费绘图额度，次日自动重置。
+            </div>
+        </div>
+
+        <!-- API Plan -->
+        <div class="limit-card" style="border-color: rgba(34, 211, 238, 0.3); background: linear-gradient(145deg, rgba(34, 211, 238, 0.05), transparent);">
+            <div style="display:flex; justify-content:space-between;">
+                <div>
+                    <div class="sub-label" style="color:var(--accent-cyan);">API 无限版</div>
+                    <div class="big-number infinite">∞</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="background:rgba(34, 211, 238, 0.1); color:var(--accent-cyan); padding:5px 10px; border-radius:8px; font-size:12px; font-weight:600; display:inline-block;">按量付费</div>
+                </div>
+            </div>
+            <div style="font-size:13px; color:var(--text-muted); margin-top:15px;">
+                配置 API Key 后解锁无限生图能力，按实际调用量计费，无每日上限。
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: API Configuration -->
+    <div class="section-label">04 / API 配置指南</div>
+    <div class="api-guide-box">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
+            <div style="width:3px; height:20px; background:var(--primary-purple);"></div>
+            <h3 style="margin:0; font-size:18px; color:#fff;">如何获取 API Key?</h3>
+        </div>
+
+        <div class="step-list">
+            <!-- Step 1 -->
+            <div class="step-item">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    <h4>进入控制台</h4>
+                    <p>登录本站，点击左侧导航栏的 <strong>API</strong> 图标进入开发者中心。</p>
+                </div>
+            </div>
+            <!-- Step 2 -->
+            <div class="step-item">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    <h4>创建令牌 (Token)</h4>
+                    <p>在左侧菜单选择 <strong>「令牌管理」</strong>，点击新建按钮。<br>
+                    <span style="color:#666; font-size:12px;">设置：名称随意填写，分组选择“默认分组”。</span></p>
+                </div>
+            </div>
+            <!-- Step 3 -->
+            <div class="step-item">
+                <div class="step-num">3</div>
+                <div class="step-content" style="width: 100%;">
+                    <h4>复制密钥</h4>
+                    <p>创建成功后，你将获得一串以 <code>sk-</code> 开头的密钥。这是调用服务的唯一凭证。</p>
+                    
+                    <div class="warning-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        请妥善保管，密钥仅在创建时显示一次
+                    </div>
+
+                    <div class="code-block">
+                        <div class="code-header">
+                            <div class="dot" style="background:#ff5f56"></div>
+                            <div class="dot" style="background:#ffbd2e"></div>
+                            <div class="dot" style="background:#27c93f"></div>
+                            <span style="margin-left:10px; font-size:12px; color:#666;">Example Key</span>
+                        </div>
+                        <div class="code-content">
+                            sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // 鼠标移动时的微光交互效果
+    const container = document.querySelector(".models-grid");
+    if(container){
+        container.onmousemove = e => {
+            for(const card of document.getElementsByClassName("model-card")) {
+                const rect = card.getBoundingClientRect(),
+                      x = e.clientX - rect.left,
+                      y = e.clientY - rect.top;
+                card.style.setProperty("--mouse-x", `${x}px`);
+                card.style.setProperty("--mouse-y", `${y}px`);
+            };
+        }
+    }
+</script>
+
+</body>
+</html>
